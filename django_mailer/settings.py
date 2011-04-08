@@ -23,3 +23,8 @@ LOCK_WAIT_TIMEOUT = max(getattr(settings, "MAILER_LOCK_WAIT_TIMEOUT", 0), 0)
 # An optional alternate lock path, potentially useful if you have multiple
 # projects running on the same server.
 LOCK_PATH = getattr(settings, "MAILER_LOCK_PATH", None)
+
+# An optional custom error handler. This is useful if you are hooking in
+# to backends other than SMTP and want to be able to defer messages based
+# on non-SMTP exceptions.
+CUSTOM_ERROR_HANDLER = getattr(settings, "MAILER_ERROR_HANDLER", None)

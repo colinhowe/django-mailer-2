@@ -60,3 +60,12 @@ place.
 
 The default value is ``-1`` which means to never wait for the lock to be
 available.
+
+MAILER_ERROR_HANDLER
+--------------------
+An optional custom error handler. This is useful if you are hooking in
+to backends other than SMTP and want to be able to defer messages based
+on non-SMTP exceptions.
+
+The format of the callback is a function that takes one argument: the 
+exception thrown by sendmail.

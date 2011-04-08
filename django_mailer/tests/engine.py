@@ -1,6 +1,11 @@
+from django.core.mail import EmailMessage
 from django.test import TestCase
-from django_mailer import engine, settings
+from django_mailer import constants, engine, settings
 from django_mailer.lockfile import FileLock
+from django_mailer.tests.base import FakeConnection, MailerTestCase
+from django_mailer.engine import send_queued_message, send_message
+from django_mailer.models import Message, QueuedMessage
+from socket import error as SocketError
 from StringIO import StringIO
 import logging
 import time
@@ -82,3 +87,92 @@ class LockTest(TestCase):
                              'Lock already in place. Exiting.')
         finally:
             time.time = original_time
+
+
+class TestErrorHandling(MailerTestCase):
+    def test_queued_message_socket_error(self):
+        '''If a socket error is raised then the standard handling
+        is that the message should be deferred'''
+        def raise_socket_error(*args, **kwargs):
+            raise SocketError()
+        FakeConnection.set_overrides([ raise_socket_error ])
+
+        message = Message.objects.create(
+            from_address='from@test.test',
+            to_address='to@test.test',
+            subject='Test',
+            encoded_message='Test message'
+        )
+        queued_message = QueuedMessage.objects.create(message=message)
+
+        send_queued_message(queued_message, self.connection)
+
+        queued_message = QueuedMessage.objects.get(id=queued_message.id)
+        self.assertTrue(queued_message.deferred != None)
+
+    def test_queued_message_custom_handler(self):
+        '''A custom error should be able to pick up any random exception'''
+        def raise_exception(*args, **kwargs):
+            raise_exception.result = Exception('Random exception')
+            raise raise_exception.result
+        FakeConnection.set_overrides([ raise_exception ])
+
+        def error_handler(exception):
+            self.assertEquals(raise_exception.result, exception)
+            error_handler.called = True
+            return constants.RESULT_FAILED
+
+        settings.CUSTOM_ERROR_HANDLER = error_handler
+
+        message = Message.objects.create(
+            from_address='from@test.test',
+            to_address='to@test.test',
+            subject='Test',
+            encoded_message='Test message'
+        )
+        queued_message = QueuedMessage.objects.create(message=message)
+
+        send_queued_message(queued_message, self.connection)
+    
+        self.assertTrue(error_handler.called)
+
+    def test_send_message_socket_error(self):
+        '''If a socket error is raised then the standard handling
+        is to return the error'''
+        def raise_socket_error(*args, **kwargs):
+            raise SocketError()
+        FakeConnection.set_overrides([ raise_socket_error ])
+
+        message = EmailMessage(
+            'Subject',
+            'Message',
+            'from@test.test',
+            ['to@test.test'])
+
+        result = send_message(message, self.connection)
+
+        self.assertEquals(constants.RESULT_FAILED, result)
+
+    def test_send_message_custom_handler(self):
+        '''A custom error should be able to pick up any random exception'''
+        def raise_exception(*args, **kwargs):
+            raise_exception.result = Exception('Random exception')
+            raise raise_exception.result
+        FakeConnection.set_overrides([ raise_exception ])
+
+        def error_handler(exception):
+            self.assertEquals(raise_exception.result, exception)
+            error_handler.called = True
+            return constants.RESULT_FAILED
+
+        settings.CUSTOM_ERROR_HANDLER = error_handler
+
+        message = EmailMessage(
+            'Subject',
+            'Message',
+            'from@test.test',
+            ['to@test.test'])
+
+        result = send_message(message, self.connection)
+
+        self.assertEquals(constants.RESULT_FAILED, result)

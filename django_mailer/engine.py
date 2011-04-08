@@ -179,14 +179,20 @@ def send_queued_message(queued_message, smtp_connection=None, blacklist=None,
                                                 message.encoded_message)
             queued_message.delete()
             result = constants.RESULT_SENT
-        except (SocketError, smtplib.SMTPSenderRefused,
-                smtplib.SMTPRecipientsRefused,
-                smtplib.SMTPAuthenticationError), err:
-            queued_message.defer()
-            logger.warning("Message to %s deferred due to failure: %s" %
-                            (message.to_address.encode("utf-8"), err))
-            log_message = unicode(err)
-            result = constants.RESULT_FAILED
+        except Exception, err:
+            if settings.CUSTOM_ERROR_HANDLER:
+                result = settings.CUSTOM_ERROR_HANDLER(err)
+            elif isinstance(err, (SocketError,
+                                  smtplib.SMTPSenderRefused,
+                                  smtplib.SMTPRecipientsRefused,
+                                  smtplib.SMTPAuthenticationError)):
+                queued_message.defer()
+                logger.warning("Message to %s deferred due to failure: %s" %
+                                (message.to_address.encode("utf-8"), err))
+                log_message = unicode(err)
+                result = constants.RESULT_FAILED
+            else:
+                raise
     if log:
         models.Log.objects.create(message=message, result=result,
                                   log_message=log_message)
@@ -221,10 +227,16 @@ def send_message(email_message, smtp_connection=None):
                     email_message.recipients(),
                     email_message.message().as_string())
         result = constants.RESULT_SENT
-    except (SocketError, smtplib.SMTPSenderRefused,
-            smtplib.SMTPRecipientsRefused,
-            smtplib.SMTPAuthenticationError):
-        result = constants.RESULT_FAILED
+    except Exception, err:
+        if settings.CUSTOM_ERROR_HANDLER:
+            result = settings.CUSTOM_ERROR_HANDLER(err)
+        elif isinstance(err, (SocketError,
+                              smtplib.SMTPSenderRefused,
+                              smtplib.SMTPRecipientsRefused,
+                              smtplib.SMTPAuthenticationError)):
+            result = constants.RESULT_FAILED
+        else:
+            raise
 
     if opened_connection:
         smtp_connection.close()
