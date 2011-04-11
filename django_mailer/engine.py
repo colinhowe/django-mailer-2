@@ -181,7 +181,7 @@ def send_queued_message(queued_message, smtp_connection=None, blacklist=None,
             result = constants.RESULT_SENT
         except Exception, err:
             if settings.CUSTOM_ERROR_HANDLER:
-                result = settings.CUSTOM_ERROR_HANDLER(err)
+                result = settings.CUSTOM_ERROR_HANDLER(queued_message, err)
             elif isinstance(err, (SocketError,
                                   smtplib.SMTPSenderRefused,
                                   smtplib.SMTPRecipientsRefused,
@@ -229,7 +229,7 @@ def send_message(email_message, smtp_connection=None):
         result = constants.RESULT_SENT
     except Exception, err:
         if settings.CUSTOM_ERROR_HANDLER:
-            result = settings.CUSTOM_ERROR_HANDLER(err)
+            result = settings.CUSTOM_ERROR_HANDLER(email_message, err)
         elif isinstance(err, (SocketError,
                               smtplib.SMTPSenderRefused,
                               smtplib.SMTPRecipientsRefused,

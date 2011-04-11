@@ -117,13 +117,6 @@ class TestErrorHandling(MailerTestCase):
             raise raise_exception.result
         FakeConnection.set_overrides([ raise_exception ])
 
-        def error_handler(exception):
-            self.assertEquals(raise_exception.result, exception)
-            error_handler.called = True
-            return constants.RESULT_FAILED
-
-        settings.CUSTOM_ERROR_HANDLER = error_handler
-
         message = Message.objects.create(
             from_address='from@test.test',
             to_address='to@test.test',
@@ -131,6 +124,13 @@ class TestErrorHandling(MailerTestCase):
             encoded_message='Test message'
         )
         queued_message = QueuedMessage.objects.create(message=message)
+
+        def error_handler(message, exception):
+            self.assertEquals(raise_exception.result, exception)
+            self.assertEquals(queued_message, message)
+            error_handler.called = True
+            return constants.RESULT_FAILED
+        settings.CUSTOM_ERROR_HANDLER = error_handler
 
         send_queued_message(queued_message, self.connection)
     
@@ -160,18 +160,18 @@ class TestErrorHandling(MailerTestCase):
             raise raise_exception.result
         FakeConnection.set_overrides([ raise_exception ])
 
-        def error_handler(exception):
-            self.assertEquals(raise_exception.result, exception)
-            error_handler.called = True
-            return constants.RESULT_FAILED
-
-        settings.CUSTOM_ERROR_HANDLER = error_handler
-
         message = EmailMessage(
             'Subject',
             'Message',
             'from@test.test',
             ['to@test.test'])
+
+        def error_handler(arg_message, exception):
+            self.assertEquals(raise_exception.result, exception)
+            self.assertEquals(message, arg_message)
+            error_handler.called = True
+            return constants.RESULT_FAILED
+        settings.CUSTOM_ERROR_HANDLER = error_handler
 
         result = send_message(message, self.connection)
 
